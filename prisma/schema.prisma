@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  role          UserRole  @default("owner")
+  emailVerified Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  profile       Profile?
+  businesses    Business[]
+  notifications Notification[]
+  aiConversations AIConversation[]
+  auditLogs     AuditLog[]
+
+  @@index([email])
+}
+
+enum UserRole {
+  owner
+  admin
+  accountant
+  viewer
+}
+
+model Profile {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String   @unique
+  fullName  String?
+  avatarUrl String?
+  language  String   @default("uz") // uz | ru
+  theme     String   @default("system") // light | dark | system
+  updatedAt DateTime @updatedAt
+}
+
+model Business {
+  id          String      @id @default(uuid())
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  name        String
+  type        String?
+  taxId       String?
+  address     String?
+  phone       String?
+  email       String?
+  currency    String      @default("USD")
+  website     String?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  transactions Transaction[]
+  categories   Category[]
+  reports      Report[]
+  subscription Subscription?
+
+  @@index([userId])
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  business  Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String
+  name      String
+  type      String   // income | expense
+  color     String
+
+  @@index([businessId])
+}
+
+model Transaction {
+  id            String   @id @default(uuid())
+  business      Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId    String
+  type          String   // income | expense
+  description   String
+  amount        Decimal  // minor units stored as Decimal to avoid float errors
+  currency      String
+  date          DateTime
+  categoryId    String?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  categoryName  String?
+  paymentMethod String?
+  notes         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([businessId])
+  @@index([businessId, date])
+  @@index([businessId, type])
+  @@index([categoryId])
+}
+
+model Subscription {
+  id               String   @id @default(uuid())
+  business         Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId       String   @unique
+  plan             String   @default("start") // start | business | premium | enterprise
+  status           String   @default("active") // active | canceled | past_due | trialing
+  price            Decimal?
+  currency         String   @default("USD")
+  currentPeriodEnd DateTime?
+  canceledAt       DateTime?
+  updatedAt        DateTime @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  title     String
+  body      String?
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([userId, read])
+}
+
+model AIConversation {
+  id        String      @id @default(uuid())
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  title     String
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  messages  AIMessage[]
+
+  @@index([userId])
+}
+
+model AIMessage {
+  id            String   @id @default(uuid())
+  conversation  AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversationId String
+  role          String   // user | assistant
+  content       String
+  demo          Boolean  @default(false)
+  createdAt     DateTime @default(now())
+
+  @@index([conversationId])
+}
+
+model Report {
+  id        String   @id @default(uuid())
+  business  Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  businessId String
+  type      String
+  title     String
+  rangeStart DateTime
+  rangeEnd   DateTime
+  data      Json
+  createdAt DateTime @default(now())
+
+  @@index([businessId])
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  userId    String?
+  action    String
+  entity    String
+  entityId  String?
+  meta      String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}

@@ -1,0 +1,1 @@
+export default function Zz() { return <div>z</div> }
